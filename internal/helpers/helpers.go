@@ -32,6 +32,7 @@ var (
 	mustFlagOrFallback              = cmdutil.MustFlagOrFallback
 	validateRequiredFlags           = cmdutil.ValidateRequiredFlags
 	validateRequiredFlagWithAliases = cmdutil.ValidateRequiredFlagWithAliases
+	missingRequiredFlagsError       = cmdutil.MissingRequiredFlagsError
 	parseISOTimeToMillis            = cmdutil.ParseISOTimeToMillis
 	validateTimeRange               = cmdutil.ValidateTimeRange
 	helperSleep                     = time.Sleep

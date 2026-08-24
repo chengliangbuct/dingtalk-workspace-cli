@@ -126,12 +126,13 @@ Flags:
       --type string      审批类型：repair-check/patch/补卡、leave/请假、overtime/加班、travel/外出、out/trip/出差，或 REPAIR_CHECK/LEAVE/OVERTIME/TRAVEL/OUT（必填）
 ```
 
-当用户提到需要提交补卡、请假、加班、外出或出差时，优先使用该命令查询考勤审批表单模板提交链接，并引导用户点击返回的 `submitUrl` 提交。
+**加班/外出/出差**需要提交时，使用该命令查询考勤审批模板提交链接，并引导用户点击返回的 `submitUrl` 提交。**请假与补卡的提交意图路由到 oa**（发起工作流见 oa.md「发起请假审批」/「发起补卡审批」章节，不在此引导链接）。
 `corpId` 和 `opUserId` 由系统参数自动注入，无需通过命令参数传入。
 审批类型映射：补卡=`REPAIR_CHECK`，请假=`LEAVE`，加班=`OVERTIME`，外出=`TRAVEL`，出差=`OUT`（`trip` / `business_trip` / `business-trip` 亦映射为 `OUT`）。返回结果为列表，每条记录包含 `approveType`、`formName`、`processCode`、`submitUrl`。
 #### 引导用户自主选择合适的表单模板流程
 如果返回多个表单模板，必须将多个可用模板都返回给用户，并引导用户根据实际场景自主选择合适的模板提交：
 - 请假场景：可根据 `formName` 将与用户请假类型更匹配的模板放在前面展示。例如用户明确说年假、事假、病假、调休时，将名称中包含对应假期类型的模板靠前；如果用户只泛化表达“请假”，将名称最通用的请假模板靠前，例如“请假”“员工请假”“通用请假”等，避免把专项或特殊场景模板放在最前。
+- 请假模板定位说明：进入 oa 域请假工作流时选定模板即可，无需向用户展示 submitUrl 链接列表（仅不支持 CLI 发起的请假模板才需要链接引导）；补卡同理（进入 oa 域补卡工作流时选定模板，仅含图片证据等不支持场景才需要链接引导）。
 - 补卡/加班场景：可将名称与“补卡”或“加班”最直接匹配的模板放在前面展示。
 - 回复用户时不要直接裸露任何 `submitUrl`，所有返回的表单模板都必须使用 Markdown 可点击链接格式展示：`[formName](submitUrl)`，例如 `[员工请假](https://...)`。如存在更匹配的模板，可以放在列表前面，但不要只返回推荐模板，必须同时返回其它可用模板供用户选择，且每个模板都应是用户可直接点击的 Markdown 链接。
 
@@ -838,6 +839,8 @@ Flags:
 ```
 
 调用 MCP 工具 get_leave_types 查询当前用户可用的假期规则列表。例如：年假、事假、病假等假期类型及对应规则。请求体封装在 McpLeaveTypeRequest 中，认证信息（corpId、opUserId）由系统自动注入，无需手动传入。
+
+发起请假审批依赖的响应字段：`leaveName`（类型名，匹配用户类型词）、`leaveCode`（leave-duration / leave-check 的 --leave-code 来源）、`leaveViewUnit`（请假单位 hour/halfHour/limitHour/day/halfDay，决定起止时间格式与时长取值）、`leaveCertificate.enable`（需上传证明材料标记）。注意 `bizType` 不可靠（实测哺乳类自定义类型亦为 general_leave），哺乳假只能按类型名称识别。
 
 ### 查询指定员工假期余额
 ```
