@@ -136,6 +136,20 @@ Flags:
 - 补卡/加班场景：可将名称与“补卡”或“加班”最直接匹配的模板放在前面展示。
 - 回复用户时不要直接裸露任何 `submitUrl`，所有返回的表单模板都必须使用 Markdown 可点击链接格式展示：`[formName](submitUrl)`，例如 `[员工请假](https://...)`。如存在更匹配的模板，可以放在列表前面，但不要只返回推荐模板，必须同时返回其它可用模板供用户选择，且每个模板都应是用户可直接点击的 Markdown 链接。
 
+### 查询可用假期类型及余额（只读，不发起审批）
+
+```
+Usage:
+  dws attendance approve leave-types [flags]
+Example:
+  dws attendance approve leave-types
+  dws attendance approve leave-types --user userId1
+Flags:
+      --user string  目标员工 userId；不传时查询当前用户（查询他人需具备权限）
+```
+
+调用 `query_leave_types_with_balance`。不传 `--user` 时查询当前用户；有权限时可按 `staffId` 查询指定员工。返回假期编码、名称、业务类型、额度单位、展示单位、说明和余额；无余额或企业隐藏余额时 `balance` 为空，`balanceHidden=true` 表示余额被隐藏。`corpId`、`opUserId` 由系统注入。
+
 ### 导入排班记录（排班 = 为员工安排工作日期和班次, 写场景接口，必须走二次确认流程）
 ```
 Usage:

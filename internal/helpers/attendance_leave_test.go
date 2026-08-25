@@ -37,6 +37,48 @@ func executeAttendanceApproveCommand(t *testing.T, caller *scriptedToolCaller, o
 	return cmd.Execute()
 }
 
+// query_leave_types_with_balance：不传 --user 时查询当前用户，且响应原样透传。
+func TestCrossPlatformCoverageAttendanceLeaveTypesCurrentUserPassesThrough(t *testing.T) {
+	payload := `{"leaveTypes":[{"leaveCode":"annual","leaveName":"年假","leaveViewUnit":"DAY","balanceHidden":false,"balance":{"remainQuota":7.5,"quotaUnit":"day"}},{"leaveCode":"sick","leaveName":"病假","balanceHidden":true,"balance":null}]}`
+	caller := &scriptedToolCaller{steps: []scriptedToolStep{{text: payload}}}
+	var out bytes.Buffer
+	if err := executeAttendanceApproveCommand(t, caller, &out,
+		"approve", "leave-types",
+	); err != nil {
+		t.Fatalf("leave-types: %v", err)
+	}
+	if caller.server != "attendance-wukong" || caller.tool != "query_leave_types_with_balance" {
+		t.Fatalf("called %s/%s, want attendance-wukong/query_leave_types_with_balance", caller.server, caller.tool)
+	}
+	if len(caller.args) != 0 {
+		t.Fatalf("args = %#v, want empty request for current user", caller.args)
+	}
+	for _, want := range []string{"leaveCode", "annual", "balanceHidden", "remainQuota"} {
+		if !strings.Contains(out.String(), want) {
+			t.Fatalf("output missing %q: %s", want, out.String())
+		}
+	}
+}
+
+// --user 一对一映射为 MCP 的 staffId；不得套旧请求对象或改名为 userId。
+func TestCrossPlatformCoverageAttendanceLeaveTypesMapsStaffID(t *testing.T) {
+	caller := &scriptedToolCaller{}
+	if err := executeAttendanceApproveCommand(t, caller, nil,
+		"approve", "leave-types", "--user", "staff-1",
+	); err != nil {
+		t.Fatalf("leave-types --user: %v", err)
+	}
+	if got := caller.args["staffId"]; got != "staff-1" {
+		t.Fatalf("staffId = %#v", got)
+	}
+	if _, exists := caller.args["userId"]; exists {
+		t.Fatalf("unexpected userId: %#v", caller.args)
+	}
+	if _, exists := caller.args["McpLeaveTypeBalanceRequest"]; exists {
+		t.Fatalf("unexpected nested request: %#v", caller.args)
+	}
+}
+
 // U1: leave-duration 必填参数缺失 / 时间格式预检失败时不发起 MCP 调用。
 func TestCrossPlatformCoverageAttendanceLeaveDurationRequiresFlags(t *testing.T) {
 	cases := [][]string{

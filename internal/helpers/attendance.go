@@ -1001,6 +1001,67 @@ func newAttendanceCommand() *cobra.Command {
 	// detailList、compressedValue、班次匹配与资格判定一律以服务端为准，
 	// CLI 不做本地近似。
 
+	// query_leave_types_with_balance 是新增的第五个只读工具，用于查询可用假期类型及余额。
+	attendanceApproveLeaveTypesCmd := &cobra.Command{
+		Use:   "leave-types",
+		Short: "查询可用假期类型及余额",
+		Long: `调用 attendance-wukong 的 query_leave_types_with_balance 工具，查询当前用户可见的假期类型及对应余额；
+有权限时可通过 --user 查询指定员工。返回假期编码、名称、业务类型、额度单位、展示单位、说明及余额信息。
+无余额或企业隐藏余额时 balance 为空；balanceHidden=true 表示余额被隐藏。本命令只查询，不发起审批。`,
+		Example: `  dws attendance approve leave-types
+  dws attendance approve leave-types --user <userId>`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			req := map[string]any{}
+			if user := mustGetFlag(cmd, "user"); user != "" {
+				req["staffId"] = user
+			}
+			return callMCPToolOnServer("attendance-wukong", "query_leave_types_with_balance", req)
+		},
+	}
+	DeclareLeafMetadata(attendanceApproveLeaveTypesCmd, LeafSpec{
+		Safety: contract.SafetySpec{
+			Effect: "read", Risk: "low",
+			Confirmation: "not_required", Idempotency: "idempotent",
+		},
+		Contract: LeafContract{
+			Identity: contract.ToolIdentitySpec{
+				ProductID:      "attendance",
+				Name:           "leave_types_with_balance",
+				CanonicalPath:  "attendance.leave_types_with_balance",
+				CLIPath:        "attendance approve leave-types",
+				PrimaryCLIPath: "attendance approve leave-types",
+			},
+			Description: "查询可用假期类型及余额",
+			Interface: &contract.InterfaceSpec{
+				Mode:         "composite",
+				Availability: "available",
+				Reason:       "Reviewed unpinned remote adapter: this executable CLI wrapper calls a remote helper that is absent from the pinned MCP metadata snapshot; no single pinned semantically equivalent interface_ref can represent the command.",
+			},
+			Result: &contract.ResultSpec{
+				Outcomes:   []contract.ResultOutcome{contract.ResultOutcomeSuccess, contract.ResultOutcomeFailure},
+				DataSchema: json.RawMessage(`{"type":"object","description":"query_leave_types_with_balance 原样透传：服务端返回员工可见的假期类型及余额；每项包含 leaveCode、leaveName、bizType、leaveUnit、leaveViewUnit、description、balanceHidden 与 balance。无余额或隐藏余额时 balance 为空","additionalProperties":true}`),
+			},
+			Selection: contract.SelectionSpec{
+				AgentSummary: "查询当前用户或有权限查看的指定员工可用假期类型及余额",
+				UseWhen: []string{
+					"发起请假审批前，需要让用户按名称、单位和可见余额选择假期类型（leaveCode）时",
+					"只读查询当前用户或有权限查看的指定员工可见假期类型及对应余额时",
+				},
+				AvoidWhen: []string{
+					"查询多名员工的指定假期余额时使用 attendance vacation balance",
+					"已选定 leaveCode 并需要计算请假时长时使用 attendance approve leave-duration",
+				},
+				Examples: []string{
+					"dws attendance approve leave-types",
+					"dws attendance approve leave-types --user <userId> --format json",
+				},
+			},
+			Parameters: []contract.ParamDecl{
+				{Name: "user", Property: "staffId"},
+			},
+		},
+	})
+
 	attendanceApproveLeaveDurationCmd := &cobra.Command{
 		Use:   "leave-duration",
 		Short: "计算请假时长（服务端口径，与客户端发起页一致）",
@@ -4113,6 +4174,10 @@ statsType 统计类型支持：week（周统计）、month（月统计）。`,
 	// approve templates (query_at_approve_template)
 	attendanceApproveTemplatesCmd.Flags().String("type", "", "审批类型：repair-check/patch/补卡、leave/请假、overtime/加班，或 REPAIR_CHECK/LEAVE/OVERTIME（必填）")
 	attendanceApproveCmd.AddCommand(attendanceApproveTemplatesCmd)
+
+	// approve leave-types（query_leave_types_with_balance）
+	attendanceApproveLeaveTypesCmd.Flags().String("user", "", "目标员工 userId；不传时查询当前用户（查询他人需具备权限）")
+	attendanceApproveCmd.AddCommand(attendanceApproveLeaveTypesCmd)
 
 	// approve leave-duration / leave-check（get_leave_time / can_leave_check）
 	attendanceApproveLeaveDurationCmd.Flags().String("leave-code", "", "假期类型编码（form-schema 套件 options[i].leaveCode）(必填)")
